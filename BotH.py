@@ -20,9 +20,9 @@ proxies = {
 
 }
 
-url = 'postgresql://{}:{}@{}:5432/{}'.format('postgres' , '2537300' , 'localhost' , 'postgres')
-con = sqlalchemy.create_engine(url , echo=True)
-meta = sqlalchemy.MetaData(bind=con , reflect=True , schema='public')
+# url = 'postgresql://{}:{}@{}:5432/{}'.format('postgres' , '2537300' , 'localhost' , 'postgres')
+# con = sqlalchemy.create_engine(url , echo=True)
+# meta = sqlalchemy.MetaData(bind=con , reflect=True , schema='public')
 
 # parser.get_director(5041006160)
 
