@@ -1,8 +1,14 @@
 import sqlalchemy
+from sqlalchemy import asc, desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker, backref, relation
-url = 'postgresql://{}:{}@{}:5432/{}'.format('postgres' ,
-                                             '2537300' , 'localhost' , 'postgres')
+import configparser
+import os
+config = configparser.ConfigParser()
+config.read(os.getcwd() + '\\config.ini')
+url = 'postgresql://{}:{}@{}:5432/{}'.format(config['BASE']['username'] ,
+                                             config['BASE']['password'] ,
+                                             config['BASE']['server'] , config['BASE']['database'] )
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, Boolean, PickleType
 con = sqlalchemy.create_engine(url , echo=False)
@@ -19,6 +25,7 @@ class Bot_History(Base):
     id_chat=Column(Integer)
     username=Column(String(400))
     offset=Column(Integer)
+    message_id=Column(Integer)
 
 class Bot_Query(Base):
     __tablename__='bot_query'
@@ -33,8 +40,6 @@ class LiveJournal_Query(Base):
     state=Column(Integer)
 
 
-
-
 class LiveJournal(Base):
     __tablename__ = 'livejournal'
     id = Column('id', Integer, primary_key=True)
@@ -43,22 +48,32 @@ class LiveJournal(Base):
     title=Column(String(200))
     dttm = Column(DateTime)
 
-Base.metadata.create_all(con)
-Session = sessionmaker(bind=con)
-session = Session()
 
-def Add_history(history):
-    session.add(history)
-    session.commit()
+class DBWork():
+    session=None
+    def __init__(self):
+        Base.metadata.create_all(con)
+        Session = sessionmaker(bind=con)
+        self.session = Session()
 
-def Add(article):
-    journal=LiveJournal(author=article['author'],article=article['article'],
-                        dttm=article['dttm'], title=article['title'])
-    session.add(journal)
+    def Add_history(self,history):
+        self.session.add(history)
+        self.session.commit()
 
-def End():
-    session.commit()
+    def get_last_message(self):
+        data=self.session.query(Bot_History.offset).order_by(desc(Bot_History.offset)).limit(1).all()
+        for d in data:
+            return d
 
 
-def Check(update):
-    return session.query(Bot_History).filter(Bot_History.offset==update).count()
+# def Add(article):
+#     journal=LiveJournal(author=article['author'],article=article['article'],
+#                         dttm=article['dttm'], title=article['title'])
+#     session.add(journal)
+
+    def End(self):
+        self.session.commit()
+
+
+    def Check(self,update):
+        return self.session.query(Bot_History).filter(Bot_History.offset==update).count()
