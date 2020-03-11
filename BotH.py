@@ -1,31 +1,93 @@
 from selenium import webdriver
 import requests
 import datetime
-import sqlalchemy
+from CheckText import TextReader
 import re
 import os
 import json
-from DB import Bot_History, Add_history, Check
+from livejournal import Livejournal
+from DB import DBWork, LiveJournal_Query, Bot_History
 from sqlalchemy import desc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-# import parser_nalog as parser
+
 import configparser
 
-token = '714164842:AAEtzkdK-6Mf48GZGajbBWSqjCOQjPUM7y4'
+config = configparser.ConfigParser()
+config.read(os.getcwd() + '\\config.ini')
+# token = '714164842:AAEtzkdK-6Mf48GZGajbBWSqjCOQjPUM7y4'
 proxies = {
     'http': 'http://142.93.57.37:80' ,
     'https': 'https://167.172.140.184:3128'
 
 }
 
-# url = 'postgresql://{}:{}@{}:5432/{}'.format('postgres' , '2537300' , 'localhost' , 'postgres')
+# url = 'postgresql://{}:{}@{}:5432/{}'.format('youruser' ,
+#                                              '13112019' , 'localhost' , 'postgres')
 # con = sqlalchemy.create_engine(url , echo=True)
 # meta = sqlalchemy.MetaData(bind=con , reflect=True , schema='public')
 
 # parser.get_director(5041006160)
+class GetUpdate():
+    con=None
+    last=None
+    bot=None
+    def __init__(self):
+        self.con=DBWork()
+        self.bot=BotHandler(config['TOKEN']['token'])
+    def check_update(self):
+        self.last = self.con.get_last_message()[0]
+        messages=self.bot.get_updates(offset=10)
+        new_message=list(filter(lambda x: x['update_id']>self.last, messages))
+        if new_message.__len__()>0:
+            return True
+        else:
+            return False
 
+
+
+class Handler():
+    last=None
+    bot=None
+    text=None
+    con=None
+
+    def __init__(self):
+        # config = configparser.ConfigParser()
+        # config.read(os.getcwd() + '\\config.ini')
+        self.con=DBWork()
+        self.text = TextReader()
+        self.bot=BotHandler(config['TOKEN']['token'])
+
+    def get_update(self):
+        self.bot.get_updates(self.check_update())
+
+    def filter_message(self, last):
+        messages=self.bot.get_updates(offset=10)
+        new_message=list(filter(lambda x: x['update_id']>last, messages))
+        # new_message=[i for i in messages if i['update_id']>self.last]
+        return new_message
+
+
+    def check_greeteng(self, message):
+        self.text.loadText(message['message']['text'])
+        if self.text.readText()==1:
+            live = LiveJournal_Query(id_message=message['message']['message_id'],
+                                     state=0)
+            DBWork.Add_history(live)
+
+
+    def add_in_db(self, message):
+                mes = Bot_History(message=message['message']['text'].encode('utf8'),
+                                  id_chat=message['message']['chat']['id'], offset=message['update_id'],
+                                  username=message['message']['chat']['first_name'].encode('utf8'),
+                                  message_id=message['message']['message_id'])
+                self.con.Add_history(mes)
+
+    def talking(self, result_json):
+        for a in result_json:
+                self.add_in_db(a)
+                self.check_greeteng(a)
+                self.bot.send_message(a['message']['chat']['id'],
+                            self.text.answer.replace('[username]', a['message']['chat']['first_name']))
 
 def get_last_update():
     currency = meta.tables [ 'public.bot_data' ]
@@ -100,41 +162,17 @@ def check_message(text):
     else:
         return False
 
-
-def get_inn(input_inn):
-    driver = webdriver.Firefox()
-    driver.get('https://egrul.nalog.ru/index.html')
-
-    editor = driver.find_element_by_id('query')
-    editor.send_keys(input_inn)
-    driver.find_element_by_id('btnSearch').click()
-    header = WebDriverWait(driver , 10).until(
-        EC.visibility_of_element_located((By.XPATH , '/html/body/div[1]/div[3]/div/div[1]/div[4]/div/div[2]/a')))
-    inn = WebDriverWait(driver , 10).until(
-        EC.visibility_of_element_located((By.XPATH , '/html/body/div[1]/div[3]/div/div[1]/div[4]/div/div[3]')))
-    result_inn = dict(
-        header=header.text ,
-        text=inn.text
-    )
-    return result_inn
-
-
 class BotHandler:
 
     def __init__(self , token):
         self.token = token
         self.api_url = "https://api.telegram.org/bot{}/".format(token)
 
-    def get_updates(self , offset=None , timeout=30):
+    def get_updates(self , offset , timeout=30):
         method = 'getUpdates'
         params = {'timeout': timeout , 'offset': offset}
         resp = requests.get(self.api_url + method , params )
         result_json = resp.json() [ 'result' ]
-        for a in result_json:
-            if Check(a['update_id'])==0:
-                self.add_in_db(a)
-                if self.check_greeteng(a['message']['text']):
-                    self.send_message(a['message']['chat']['id'],  self.greeting(a['message']['chat']['first_name']))
         return result_json
 
     @classmethod
@@ -174,23 +212,9 @@ class BotHandler:
         resp = requests.post(self.api_url + method , params )
         return resp
 
-    @staticmethod
-    def greeting( username):
-            return 'Здравствуйте {}. Я бот для предоставления информации о различных фирмах\n' \
-                   'я ищу информации на nalog.ru и в соц сетях.\n' \
-                   'Для начала поиска в соц сетях напишите слово livejournal'.format(username)
 
-    @classmethod
-    def check_greeteng(cls, text):
-        if text in greetings:
-            return True
 
-    @classmethod
-    def add_in_db(cls, message):
-        mes=Bot_History(message=message['message']['text'],
-                        id_chat=message['message']['chat']['id'], offset=message['update_id'],
-                        username=message['message']['chat']['first_name'])
-        Add_history(mes)
+
     def get_last_update(self):
         get_result = self.get_updates()
 
@@ -202,40 +226,39 @@ class BotHandler:
         return last_update
 
 
-greet_bot = BotHandler(token)
-greetings = ('здравствуй' , 'привет' , 'ку' , 'здорово' , 'добрый день' , 'доброе утро' , 'здравствуйте')
-now = datetime.datetime.now()
+# greet_bot = BotHandler(token)
+# now = datetime.datetime.now()
 
 
-def insert_send_message(text , info_message):
-    currency = meta.tables [ 'public.send_message' ]
-    inn = get_only_inn(info_message [ 'last_chat_text' ])
-    insert_data = dict(
-        id_message=info_message [ 'id_message' ] ,
-        message=text ,
-        dttm=datetime.datetime.now() ,
-        inn=int(inn) ,
-        id_chat=info_message [ 'last_chat_id' ]
-    )
-    cursor = currency.insert(insert_data)
-    con.execute(cursor)
+# def insert_send_message(text , info_message):
+#     currency = meta.tables [ 'public.send_message' ]
+#     inn = get_only_inn(info_message [ 'last_chat_text' ])
+#     insert_data = dict(
+#         id_message=info_message [ 'id_message' ] ,
+#         message=text ,
+#         dttm=datetime.datetime.now() ,
+#         inn=int(inn) ,
+#         id_chat=info_message [ 'last_chat_id' ]
+#     )
+#     cursor = currency.insert(insert_data)
+#     con.execute(cursor)
 
 
-def get_last_inn(chat_id):
-    currency_inn = meta.tables [ 'public.send_message' ]
-    currency_id = meta.tables [ 'public.bot_data' ]
-    id_message = currency_inn.select().with_only_columns([ currency_inn.c.inn ]).where(
-        currency_inn.c.id_chat == chat_id).order_by(desc(currency_inn.c.dttm))
-    id_message = con.execute(id_message)
-    for item in id_message:
-        id_message = item
-        break
-    # select_db=currency_id.select().with_only_columns([currency_id.c.message]).where(currency_id.c.id_message==id_message[0])
-    # select_db=con.execute(select_db)
-    # for item in select_db:
-    #     inn_text=item
-    #     break
-    return id_message [ 0 ]
+# def get_last_inn(chat_id):
+#     currency_inn = meta.tables [ 'public.send_message' ]
+#     currency_id = meta.tables [ 'public.bot_data' ]
+#     id_message = currency_inn.select().with_only_columns([ currency_inn.c.inn ]).where(
+#         currency_inn.c.id_chat == chat_id).order_by(desc(currency_inn.c.dttm))
+#     id_message = con.execute(id_message)
+#     for item in id_message:
+#         id_message = item
+#         break
+#     # select_db=currency_id.select().with_only_columns([currency_id.c.message]).where(currency_id.c.id_message==id_message[0])
+#     # select_db=con.execute(select_db)
+#     # for item in select_db:
+#     #     inn_text=item
+#     #     break
+#     return id_message [ 0 ]
 
 def return_info_director(director):
     result='Должность - {}. Фамилия И.О: {} {} {}'.format(director['position'],director['surnames'],director['name'],director['second_name'])
@@ -251,163 +274,6 @@ def return_info_founders(text):
         result+='Фамилия И.О. - {} {} {}\n'.format(item['surnames'],item['name'],item['second_name'])
     return result
 
-
-def search_inn(info_message,config):
-    inn=parser.get_simple_data (info_message [ 'last_chat_text' ])
-    # last_inn=get_only_inn(last_chat_text)
-    if inn == -1:
-        greet_bot.send_message (info_message [ 'last_chat_id' ] , 'Сервис временно не доступен')
-        return -1
-    elif inn == -2:
-        greet_bot.send_message (info_message [ 'last_chat_id' ] , 'Данный ИНН отсутсвует в базе данных')
-        return -1
-    while True:
-        try:
-            source_text=config [ 'Source' ] [ 'text' ]
-            greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                    source_text + '\nИнформация по фирме\n{} '.format (inn))
-            insert_send_message (inn , info_message)
-            print (inn)
-            inn_text=get_last_inn (info_message [ 'last_chat_id' ])
-            director=parser.get_director (inn_text)
-            if director == -1:
-                greet_bot.send_message (info_message [ 'last_chat_id' ] , 'Информация о директоре не обнаружена')
-
-            else:
-                greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                        'Информация о директоре \n{}'.format (return_info_director (director)))
-            founders=parser.get_founders (inn_text)
-            if founders == -1:
-                greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                        'Информация об учредителях не обнаружена')
-
-            else:
-                greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                        'Информация об учредителях \n{}'.format (return_info_founders (founders)))
-
-            greet_bot.send_keyboard (info_message [ 'last_chat_id' ] , 'Загрузить полную выписку')
-            new_offset=get_last_update ()
-            new_offset+=1
-            try:
-                message_bot=greet_bot.get_updates (new_offset)
-
-                info_message_last=record_update (message_bot[0])
-            except:
-                greet_bot.send_keyboard (info_message [ 'last_chat_id' ] , 'Введите новый запрос')
-                break
-            last_update=message_bot [ 0 ]
-            last_chat_text=last_update [ 'message' ] [ 'text' ]
-
-            if last_chat_text == 'Скачать файл':
-
-                greet_bot.send_document (info_message [ 'last_chat_id' ] , str (inn_text))
-                break
-            elif last_chat_text == 'Пропустить':
-                inn_text=get_last_inn (info_message [ 'last_chat_id' ])
-                os.remove ('D:\\Data\\send\\' + str (inn_text) + '.pdf')
-                break
-            elif info_message_last['last_chat_id']!=info_message['last_chat_id']:
-                main_delay(info_message_last,config)
-                greet_bot.send_message (info_message [ 'last_chat_id' ] , 'Жду еще ИНН')
-                break
-        except Exception as e:
-            print (e.args)
-            continue
-
-def search_director(info_message,config):
-    inn=parser.get_simple_data (info_message [ 'last_chat_text' ])
-    # last_inn=get_only_inn(last_chat_text)
-    if inn == -1:
-
-        return -1
-    elif inn == -2:
-
-        return -1
-
-    try:
-
-            inn_text=get_last_inn (info_message [ 'last_chat_id' ])
-            director=parser.get_director (inn_text)
-            if director == -1:
-                return -1
-            else:
-                return director
-
-    except:
-               return -2
-
-def main_delay(info_message, config):
-    today=now.day
-    hour=now.hour
-    if check_message (info_message [ 'last_chat_text' ]):
-        greet_bot.send_message (info_message [ 'last_chat_id' ] , 'Идет загрузка информации....')
-        if len (info_message [ 'last_chat_text' ]) > 10:
-            info_message [ 'last_chat_text' ]=get_only_inn (info_message [ 'last_chat_text' ])
-        search_inn (info_message , config)
-
-    elif info_message [ 'last_chat_text' ] == '/start':
-
-        temp_text=config [ 'Start' ] [ 'text' ]
-        greet_bot.send_message (info_message [ 'last_chat_id' ] , '{} '.format (temp_text))
-
-    else:
-
-        if info_message [ 'last_chat_text' ].lower () in greetings and today == now.day and 6 <= hour < 12:
-            greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                    'Доброе утро, {}.\n Жду ИНН'.format (info_message [ 'last_chat_name' ]))
-            today+=1
-
-        elif info_message [ 'last_chat_text' ].lower () in greetings and today == now.day and 12 <= hour < 17:
-            greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                    'Добрый день, {}.\n Жду ИНН'.format (info_message [ 'last_chat_name' ]))
-            today+=1
-
-        elif info_message [ 'last_chat_text' ].lower () in greetings and today == now.day and 17 <= hour < 23:
-            greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                    'Добрый вечер, {}.\n  Жду ИНН'.format (info_message [ 'last_chat_name' ]))
-            today+=1
-
-        else:
-            greet_bot.send_message (info_message [ 'last_chat_id' ] ,
-                                    'Введите ИНН, 10 цифр, {}.\n'.format (info_message [ 'last_chat_name' ]))
-            today+=1
-    return -1
-
-
-
-
-def get_director_shedule():
-    currency = meta.tables['public.shedule']
-    select=currency.select()
-    db=con.execute(select)
-    result=[]
-    for item in db:
-        info_shedule = dict(
-        id_customer=item._row[0],
-        id_chat=item._row[1],
-        director=item._row[2],
-        status=item._row[3],
-
-        )
-        result.append(info_shedule)
-    return result
-
-
-def add_director_schedule(info_message):
-    if len(info_message['last_chat_text']) > 10:
-        info_message['last_chat_text'] = get_only_inn(info_message['last_chat_text'])
-    director=search_director(info_message)
-
-    insert_data=dict(
-
-            id_customer=info_message['id_sender'],
-            id_chat=info_message['last_chat_id'],
-            director=text,
-            status=1,
-    )
-    currency=meta.tables['public.shedule']
-    select=currency.insert(insert_data)
-    db=con.execute(select)
 
 def main():
 
@@ -438,8 +304,16 @@ def main():
         main_delay(info_message,config)
 
         # new_offset = info_message [ 'last_chat_id' ] + 1
-
-
-b=BotHandler(token)
-b.get_updates()
-# b.send_message(433611977,'hello')
+import time
+check_last=GetUpdate()
+while True:
+    if (check_last.check_update()):
+        try:
+            handler=Handler()
+            t=handler.filter_message(check_last.last)
+            a=handler.talking(t)
+            time.sleep(10)
+        except Exception as e:
+            print(e)
+            continue
+        time.sleep(10)
