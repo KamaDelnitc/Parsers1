@@ -1,10 +1,12 @@
+import re
+
 from DB import DBWork
 import configparser
 import os
 config = configparser.ConfigParser()
-config.read(os.getcwd() + '\\config.ini'))
+config.read(os.getcwd() + '\\config.ini')
 
-class ChecText:
+class TextReader:
     answer=None
     text=None
     def __init__(self):
@@ -25,6 +27,32 @@ class ChecText:
             return False
 
 
-    def checkMessage(self):
+    def readText(self):
         if (self.text in config['GREETING']['words']):
-            self.answer='Здравствуйте, [username]'
+            self.answer='Здравствуйте, [username]. Я бот, который предоставляет информацию по' \
+                        'фирмам. Я ищу информацию в социальных сетях, на сайте налоговой.' \
+                        'Для поиска информации на сайте налоговой, укажите команду nalog {ИНН или наименование}, для' \
+                        'поиска информации в Livejournal - Livejournal {Наименование}'
+            self.code=0
+            return self.code
+        elif re.search('livejornal',self.text.lower()):
+            data_search=self.text.split(' ')[1]
+            if (data_search.__len__()<1):
+                self.answer = 'Нет имени для поиска'
+                self.code=-1
+            else:
+                self.answer = '[username]. Я начинаю поиск в Livejournal'
+                self.code = 1
+            return self.code
+        elif re.search('nalog',self.text.lower()):
+            data_search=self.text.split(' ')[1]
+            if (data_search.__len__()<1):
+                self.answer = 'Нет имени для поиска'
+                self.code=-1
+            else:
+                self.answer = '[username]. Я начинаю поиск на сайте налоговой'
+                self.code = 2
+        else:
+            self.answer = '[username]. Вы указали неправильный формат формат запроса'
+            self.code = -1
+        return self.code

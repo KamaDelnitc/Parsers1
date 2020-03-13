@@ -15,8 +15,8 @@ config = configparser.ConfigParser()
 config.read(os.getcwd() + '\\config.ini')
 # token = '714164842:AAEtzkdK-6Mf48GZGajbBWSqjCOQjPUM7y4'
 proxies = {
-    'http': 'http://142.93.57.37:80' ,
-    'https': 'https://167.172.140.184:3128'
+    'http': '108.74.113.180:80' ,
+    'https': '178.63.246.85:8118'
 
 }
 
@@ -73,6 +73,7 @@ class Handler():
             live = LiveJournal_Query(id_message=message['message']['message_id'],
                                      state=0)
             DBWork.Add_history(live)
+
 
 
     def add_in_db(self, message):
