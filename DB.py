@@ -6,6 +6,7 @@ import configparser
 import os
 config = configparser.ConfigParser()
 config.read(os.getcwd() + '\\config.ini')
+print(config['TOKEN'])
 url = 'postgresql://{}:{}@{}:5432/{}'.format(config['BASE']['username'] ,
                                              config['BASE']['password'] ,
                                              config['BASE']['server'] , config['BASE']['database'] )

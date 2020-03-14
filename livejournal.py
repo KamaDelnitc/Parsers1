@@ -2,7 +2,7 @@ from selenium import webdriver
 from selenium import webdriver
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 import requests
-import datetime
+import asyncio
 import io
 from DB import DBWork
 
@@ -13,14 +13,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import configparser
-prox = Proxy()
-prox.proxy_type = ProxyType.MANUAL
-prox.http_proxy = "1.0.0.40:80"
-# prox.socks_proxy = "ip_addr:port"
-prox.ssl_proxy = "163.172.147.94:8811"
+# prox = Proxy()
+# prox.proxy_type = ProxyType.MANUAL
+# prox.http_proxy = "1.0.0.40:80"
+# # prox.socks_proxy = "ip_addr:port"
+# prox.ssl_proxy = "163.172.147.94:8811"
 
-capabilities = webdriver.DesiredCapabilities.FIREFOX
-prox.add_to_capabilities(capabilities)
+# capabilities = webdriver.DesiredCapabilities.FIREFOX
+# prox.add_to_capabilities(capabilities)
 
 # driver = webdriver.Chrome(desired_capabilities=capabilities)
 
@@ -42,19 +42,19 @@ class Livejournal():
     con=None
     def __init__(self):
         self.con=DBWork()
-        fp = webdriver.FirefoxProfile()
-        fp.set_preference("network.proxy.type", 1)
-        fp.set_preference("network.proxy.http",'142.93.57.37')
-        fp.set_preference("network.proxy.http_port",int('80'))
-        fp.set_preference("general.useragent.override","whater_useragent")
-        fp.update_preferences()
+        # fp = webdriver.FirefoxProfile()
+        # fp.set_preference("network.proxy.type", 1)
+        # fp.set_preference("network.proxy.http",'142.93.57.37')
+        # fp.set_preference("network.proxy.http_port",int('80'))
+        # fp.set_preference("general.useragent.override","whater_useragent")
+        # fp.update_preferences()
         self.driver = webdriver.Firefox()
 
-    def find(self, text):
+    async def find(self, text):
         for j in range (1, 10):
             self.driver.get('https://www.livejournal.com/rsearch?page={}&q={}&searchArea=post'.format(str(j), text))
             ul=self.driver.find_element_by_class_name('rsearch-result')
-            time.sleep(5)
+            await asyncio.sleep(3)
             for i in range (1,5):
                 li = ul.find_element_by_xpath('//*[@id="js"]/body/div[2]/div[5]/div[1]/div/section/div/div[2]/ul/li[{}]'.format(str(i)))
                 time.sleep(3)

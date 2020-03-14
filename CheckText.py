@@ -9,9 +9,11 @@ config.read(os.getcwd() + '\\config.ini')
 class TextReader:
     answer=None
     text=None
+    search=None
     def __init__(self):
         self.answer=''
         self.text=''
+        self.search=''
         self.con=DBWork()
 
     def loadText(self, text):
@@ -35,9 +37,9 @@ class TextReader:
                         'поиска информации в Livejournal - Livejournal {Наименование}'
             self.code=0
             return self.code
-        elif re.search('livejornal',self.text.lower()):
-            data_search=self.text.split(' ')[1]
-            if (data_search.__len__()<1):
+        elif re.search('livejournal',self.text.lower()):
+            self.search=self.text.split(' ')[1]
+            if (self.search.__len__()<1):
                 self.answer = 'Нет имени для поиска'
                 self.code=-1
             else:
@@ -45,8 +47,8 @@ class TextReader:
                 self.code = 1
             return self.code
         elif re.search('nalog',self.text.lower()):
-            data_search=self.text.split(' ')[1]
-            if (data_search.__len__()<1):
+            self.search=self.text.split(' ')[1]
+            if (self.search.__len__()<1):
                 self.answer = 'Нет имени для поиска'
                 self.code=-1
             else:
